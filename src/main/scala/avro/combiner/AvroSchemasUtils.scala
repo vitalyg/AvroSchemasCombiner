@@ -1,5 +1,4 @@
-package com.linkedin.AvroSchemasCombiner
-
+package avro.combiner
 
 import play.api.libs.json._
 

@@ -1,5 +1,4 @@
-package com.linkedin.AvroSchemasCombiner
-
+package avro.combiner
 
 import java.io.{FileWriter, BufferedWriter, File, FileFilter}
 import io.Source
