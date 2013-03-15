@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: play:anorm_2.9.2:2.1-09142012">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/play/anorm_2.9.2/2.1-09142012/anorm_2.9.2-2.1-09142012.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/play/anorm_2.9.2/2.1-09142012/anorm_2.9.2-2.1-09142012-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/play/anorm_2.9.2/2.1-09142012/anorm_2.9.2-2.1-09142012-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

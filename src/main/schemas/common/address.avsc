@@ -1,0 +1,24 @@
+{
+   "namespace" : "example.avro",
+   "type" : "record",
+   "name" : "Address",
+   "fields" :
+      [
+         {
+            "name" : "street",
+            "type" : "string"
+         },
+         {
+            "name" : "number",
+            "type" : "int"
+         },
+         {
+            "name" : "apartment",
+            "type" :
+               [
+                  "int",
+                  "null"
+               ]
+         }
+      ]
+}

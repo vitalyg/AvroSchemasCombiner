@@ -1,0 +1,68 @@
+{
+   "namespace" : "example.avro",
+   "type" : "record",
+   "name" : "User",
+   "fields" :
+      [
+         {
+            "name" : "name",
+            "type" : "string"
+         },
+         {
+            "name" : "favorite_number",
+            "type" :
+               [
+                  "int",
+                  "null"
+               ]
+         },
+         {
+            "name" : "favorite_color",
+            "type" :
+               [
+                  "string",
+                  "null"
+               ]
+         },
+         {
+            "name" : "address",
+            "type" :
+               {
+                  "type" : "map",
+                  "values" : "Address"
+               }
+         },
+         {
+            "name" : "title",
+            "type" :
+               {
+                  "type" : "enum",
+                  "name" : "title",
+                  "symbols" :
+                     [
+                        "Mr",
+                        "Miss",
+                        "Mrs",
+                        "Ms"
+                     ]
+               }
+         },
+         {
+            "name" : "phones",
+            "type" :
+               {
+                  "type" : "array",
+                  "items" : "example.phones.Phone"
+               }
+         },
+         {
+            "name" : "hash",
+            "type" :
+               {
+                  "type" : "fixed",
+                  "size" : 16,
+                  "name" : "md5"
+               }
+         }
+      ]
+}

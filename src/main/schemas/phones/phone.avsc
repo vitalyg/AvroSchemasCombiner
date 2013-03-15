@@ -1,0 +1,23 @@
+{
+   "namespace" : "example.phones",
+   "type" : "record",
+   "name" : "Phone",
+   "fields" :
+      [
+         {
+            "name" : "country_code",
+            "type" :
+               [
+                  "int",
+                  "null"
+               ]
+         },         {
+            "name" : "area_code",
+            "type" : "int"
+         },
+         {
+            "name" : "number",
+            "type" : "int"
+         }
+      ]
+}
