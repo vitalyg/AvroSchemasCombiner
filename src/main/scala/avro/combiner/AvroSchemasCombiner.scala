@@ -63,8 +63,6 @@ object AvroSchemasCombiner {
   }
 
 
-  //implicit def toJsonArray(schemas: Seq[JsValue]) = JsArray(schemas)
-
   def main(args: Array[String]) {
     val avroDirectory = args(0)
     val outputPath = args(1)
@@ -84,16 +82,5 @@ object AvroSchemasCombiner {
     val bw = new BufferedWriter(new FileWriter(outputFile))
     bw.write(Json.stringify(getSchemasInOrder(flatSchemas, order)))
     bw.close()
-
-//    val z = AvroSchemasUtils.namespaceSchema(schemas("InmailSendEvent"))
-//    println(z)
-//    val a = AvroSchemasUtils.getNestedSchemas(z)
-//    println(a)
-//    val b = a.map(x => (AvroSchemasUtils.getNameWithNamespace(x.as[JsObject]), AvroSchemasUtils.flattenSchema(x.as[JsObject]))).toMap
-//    println(b)
-//    val c = getDependencyGraph(b)
-//    println(c)
-//    val d = topologicalSort(c)
-//    println(d)
   }
 }
