@@ -4,6 +4,7 @@ import java.io.{FileWriter, BufferedWriter, File, FileFilter}
 import io.Source
 import play.api.libs.json._
 import annotation.tailrec
+import AvroSchemasUtils._
 
 
 /**
@@ -37,9 +38,7 @@ object AvroSchemasCombiner {
   }
 
   def getDependencyGraph(schemas: Map[String, JsObject]) : Map[String, Set[String]] = {
-    def getSchemaDependencies(schema: JsValue) : Set[String] = AvroSchemasUtils.getDependencies(schema).map(_.as[String]).toSet
-
-    schemas.mapValues(schema => getSchemaDependencies(schema))
+    schemas.mapValues(schema => getDependencies(schema).map(_.as[String]).toSet)
   }
 
   @tailrec
@@ -74,9 +73,11 @@ object AvroSchemasCombiner {
       outputFile.createNewFile
 
     val schemas = getAvroSchemas(inputDir)
-    val namespacedSchemas = schemas.values.map(x => AvroSchemasUtils.namespaceSchema(x))
-    val nestedSchemas = namespacedSchemas.flatMap(x => AvroSchemasUtils.getNestedSchemas(x))
-    val flatSchemas = nestedSchemas.map(x => (AvroSchemasUtils.getNameWithNamespace(x.as[JsObject]), AvroSchemasUtils.flattenSchema(x.as[JsObject]))).toMap
+    val namespacedSchemas = schemas.values.map(namespaceSchema)
+//    println(namespacedSchemas.tail.head)
+//    println(getNestedSchemas(namespacedSchemas.tail.head))
+    val nestedSchemas = namespacedSchemas.flatMap(getNestedSchemas)
+    val flatSchemas = nestedSchemas.map(x => (getNameWithNamespace(x.as[JsObject]), flattenSchema(x.as[JsObject]))).toMap
     val order = topologicalSort(getDependencyGraph(flatSchemas))
 
     val bw = new BufferedWriter(new FileWriter(outputFile))
