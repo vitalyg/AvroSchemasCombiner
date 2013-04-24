@@ -1,7 +1,6 @@
 package avro.combiner
 
 import play.api.libs.json._
-import collection.{GenMap, GenTraversableOnce}
 
 /**
  * User: vgordon
