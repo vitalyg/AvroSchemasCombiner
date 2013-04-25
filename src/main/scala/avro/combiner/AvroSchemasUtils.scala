@@ -1,6 +1,8 @@
 package avro.combiner
 
 import play.api.libs.json._
+import scala.annotation.tailrec
+
 
 /**
  * User: vgordon
@@ -193,5 +195,24 @@ object AvroSchemasUtils {
   def getDependencies(schema: JsValue) = {
     val x = traverseSchema(schema, DependenciesExtractor)
     AvroSchemasUtils.extractValue(x)
+  }
+  def getDependencyGraph(schemas: Map[String, JsObject]) : Map[String, Set[String]] = {
+    schemas.mapValues(schema => getDependencies(schema).map(_.as[String]).toSet)
+  }
+
+  @tailrec
+  def topologicalSort(graph: Map[String, Set[String]], sortedGraph: List[String] = List()) : List[String] = {
+    if (graph.isEmpty)
+      return sortedGraph.distinct.reverse
+
+    val node = graph.find(_._2.isEmpty)
+    node match {
+      case Some(schema) => {
+        val key = schema._1
+        val newGraph = (graph - key).mapValues(depends => depends - key)
+        topologicalSort(newGraph, key :: sortedGraph)
+      }
+      case None => throw new Exception("Circular dependency in schema")
+    }
   }
 }

@@ -37,26 +37,6 @@ object AvroSchemasCombiner {
     dirs.map(getAvroSchemas).flatten.toMap ++ files.map(getSchema).toMap
   }
 
-  def getDependencyGraph(schemas: Map[String, JsObject]) : Map[String, Set[String]] = {
-    schemas.mapValues(schema => getDependencies(schema).map(_.as[String]).toSet)
-  }
-
-  @tailrec
-  def topologicalSort(graph: Map[String, Set[String]], sortedGraph: List[String] = List()) : List[String] = {
-    if (graph.isEmpty)
-      return sortedGraph.distinct.reverse
-
-    val node = graph.find(_._2.isEmpty)
-    node match {
-      case Some(schema) => {
-        val key = schema._1
-        val newGraph = (graph - key).mapValues(depends => depends - key)
-        topologicalSort(newGraph, key :: sortedGraph)
-      }
-      case None => throw new Exception("Circular dependency in schema")
-    }
-  }
-
   def getSchemasInOrder(schemas: Map[String, JsObject], order: Seq[String]) : JsArray = {
     Json.toJson(order.map(schemaName => schemas(schemaName))).as[JsArray]
   }
