@@ -16,7 +16,7 @@ class AvroSchemasCombinerTest extends SpecificationWithJUnit {
 
   "getSchemaName should" should {
     "get the right name" in {
-      AvroSchemasCombiner.getSchemaName(schema) mustEqual("User")
+      AvroSchemasCombiner.getSchemaName(schema) mustEqual "User"
     }
   }
 }

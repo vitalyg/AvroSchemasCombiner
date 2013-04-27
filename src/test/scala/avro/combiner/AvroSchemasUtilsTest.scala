@@ -17,10 +17,10 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
 
   "Concatenating namespaces should" should {
     "combine namespace and name with a dot" in {
-      AvroSchemasUtils.getNameWithNamespace("avro", "combiner") mustEqual("avro.combiner")
+      AvroSchemasUtils.getNameWithNamespace("avro", "combiner") mustEqual "avro.combiner"
     }
     "ignore namespace if name has a dot" in {
-      AvroSchemasUtils.getNameWithNamespace("avro", "avro.combiner") mustEqual("avro.combiner")
+      AvroSchemasUtils.getNameWithNamespace("avro", "avro.combiner") mustEqual "avro.combiner"
     }
   }
 
@@ -48,6 +48,25 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
     }
   }
 
+  "traverseSchemas with InternallyDefinedSchemasExtractor" should {
+    val simpleArray = JsArray(Seq(JsString("int"), JsString("null")))
+    "check that simple array return empty JsObjectArray" in {
+      AvroSchemasUtils.traverseSchema(simpleArray, InternallyDefinedSchemasExtractor) mustEqual JsObjectArray(Nil)
+    }
+    "check that compund array still returns empty JsObjectArray" in {
+      val compoundArray = JsArray(Seq(JsObject(Seq("name" -> JsString("name"), "type" -> JsString("string"))),
+                                      JsObject(Seq("name" -> JsString("number"), "type" -> simpleArray))))
+      AvroSchemasUtils.traverseSchema(compoundArray, InternallyDefinedSchemasExtractor) mustEqual JsObjectArray(Nil)
+    }
+    "check that enum does not return a JsObjectArray" in {
+      val enum = JsObject(Seq("name" -> JsString("title"),
+                              "type" -> JsObject(Seq("type" -> JsString("enum"),
+                                                     "name" -> JsString("title"),
+                                                     "symbols" -> JsArray(Seq(JsString("a"), JsString("b")))))))
+      AvroSchemasUtils.traverseSchema(enum, InternallyDefinedSchemasExtractor) \ "type" mustEqual JsString("enum")
+    }
+  }
+
   "getNestedSchemas" should {
     def hasElement(elements: JsObjectArray, name: String) = {
       elements.array.filter(el => stringMatch(el \ "name", name)).size > 0
@@ -69,7 +88,6 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
               .value
               .filter(f => stringMatch(f \ "name", fieldName))
               .head
-//      el
       (el \ "type").isInstanceOf[JsString]
     }
     val flatSchemas = AvroSchemasUtils.flattenSchema(namespacedSchema)
@@ -83,6 +101,15 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
 
   val dependencies = AvroSchemasUtils.getDependencyGraph(Map("User" -> flatSchemas))
   "getDependencyGraph" should {
+    val simpleArray = JsArray(Seq(JsString("int"), JsString("null")))
+    "check that simple array return empty JsObjectArray" in {
+      AvroSchemasUtils.traverseSchema(simpleArray, DependenciesExtractor) mustEqual JsObjectArray(Nil)
+    }
+    "check that compund array still returns empty JsObjectArray" in {
+      val compoundArray = JsArray(Seq(JsObject(Seq("name" -> JsString("name"), "type" -> JsString("string"))),
+                                      JsObject(Seq("name" -> JsString("number"), "type" -> simpleArray))))
+      AvroSchemasUtils.traverseSchema(compoundArray, DependenciesExtractor) mustEqual JsObjectArray(Nil)
+    }
     def isDependency(depends: Map[String, Set[String]], name: String) = depends("User")(name)
     "check that title is a dependency" in {
       isDependency(dependencies, "example.avro.title") mustEqual true
@@ -99,5 +126,4 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
       order.tail.head mustEqual "B"
     }
   }
-
 }
