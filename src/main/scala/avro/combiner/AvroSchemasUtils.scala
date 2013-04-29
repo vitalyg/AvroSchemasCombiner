@@ -2,7 +2,7 @@ package avro.combiner
 
 import play.api.libs.json._
 import scala.annotation.tailrec
-
+import AvroSchemasUtils._
 
 /**
  * User: vgordon
@@ -16,6 +16,8 @@ import scala.annotation.tailrec
 
 trait AvroTraversal {
   def traverseRecordType(schema: JsValue, recordResults: JsValue): JsValue = recordResults
+  def traverseObjectType(schema: JsValue, objectResults: JsValue): JsValue = objectResults
+  def traverseArray(schema: JsValue, arrayResults: JsValue) : JsValue = arrayResults
   def traverseArrayType(schema: JsValue, arrayResults: JsValue) : JsValue = arrayResults
   def traverseMapType(schema: JsValue, mapResults: JsValue) : JsValue = mapResults
   def traverseEnumType(schema: JsValue): JsValue = JsObject(Nil)
@@ -32,6 +34,19 @@ object InternallyDefinedSchemasExtractor extends AvroTraversal {
 
 object DependenciesExtractor extends AvroTraversal {
   override def traverseReferenceType(schema: JsValue) = schema
+}
+
+object FlattenStrategy extends AvroTraversal {
+  def modifySchemaElement(schema: JsValue, key: String, newVal: JsValue) = schema.as[JsObject] - key + (key -> newVal)
+  override def traverseRecordType(schema: JsValue, recordResults: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
+  override def traverseObjectType(schema: JsValue, objectResults: JsValue): JsValue = modifySchemaElement(schema, "type", objectResults)
+  override def traverseArray(schema: JsValue, arrayResults: JsValue) : JsValue = modifySchemaElement(schema, "type", arrayResults)
+  override def traverseArrayType(schema: JsValue, arrayResults: JsValue) : JsValue = modifySchemaElement(schema, "items", arrayResults)
+  override def traverseMapType(schema: JsValue, mapResults: JsValue) : JsValue = modifySchemaElement(schema, "values", mapResults)
+  override def traverseEnumType(schema: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
+  override def traverseFixedType(schema: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
+  override def traversePrimitiveType(schema: JsValue): JsValue = schema
+  override def traverseReferenceType(schema: JsValue): JsValue = schema
 }
 
 object AvroSchemasUtils {
@@ -59,11 +74,11 @@ object AvroSchemasUtils {
       val schemaType = (schema \ "type")
       schemaType match {
         // union definition
-        case JsArray(types) => strategy.traverseArrayType(schema, mapAndFilter(types, traverseSchema(_, strategy)))
+        case JsArray(types) => strategy.traverseArray(schema, mapAndFilter(types, traverseSchema(_, strategy)))
         // built-in type
         case JsString(str) => parseString(str)
         // type definition
-        case JsObject(_) => traverseSchema(schemaType, strategy)
+        case JsObject(_) => strategy.traverseObjectType(schema, traverseSchema(schemaType, strategy))
         case _ => throw new Exception("Unrecognizable JSON element\n" + schema)
       }
     }
@@ -81,54 +96,19 @@ object AvroSchemasUtils {
     }
 
     schema match {
-      case JsArray(elements) => strategy.traverseArrayType(schema, mapAndFilter(elements, traverseSchema(_, strategy)))
+      case JsArray(elements) => mapAndFilter(elements, traverseSchema(_, strategy))
       case JsObject(_) => parseByType(schema)
       case JsString(str) => parseString(str)
       case _ => throw new Exception("Unrecognizable JSON element\n" + schema)
     }
   }
 
-  def flattenSchema(schema: JsObject) : JsObject = {
-    def modifySchemaElement(schema: JsObject, key: String, newVal: JsValue) = schema - key + (key -> newVal)
-    def modifySchema(schema: JsValue) : JsValue = {
-      def parseByType(schema: JsObject) : JsValue = {
-        val schemaType = schema \ "type"
-        schemaType match {
-          // union definition
-          case JsArray(types) => modifySchemaElement(schema, "type", JsArray(types.map(element => modifySchema(element))))
-          // built-in type
-          case JsString(str) => {
-            str match {
-              case "record" => JsString(getNameWithNamespace(schema))
-              case "array" => modifySchemaElement(schema, "items", modifySchema(schema \ "items"))
-              case "map" => modifySchemaElement(schema, "values", modifySchema(schema \ "values"))
-              case "enum" => JsString(getNameWithNamespace(schema))
-              case "fixed" => JsString(getNameWithNamespace(schema))
-              case Primitive(_) => schema
-              case _ => schema // class reference
-            }
-          }
-          // type definition
-          case JsObject(_) => modifySchemaElement(schema, "type", modifySchema(schemaType))
-          case _ => throw new Exception("Unrecognizable JSON element\n" + schema)
-        }
-      }
-
-      schema match {
-        case JsArray(elements) => JsArray(elements.map(modifySchema))
-        case JsObject(_) => parseByType(schema.as[JsObject])
-        case JsString(str) => schema
-        case _ => throw new Exception("Unrecognizable JSON element\n" + schema)
-      }
+  def flattenSchema(schema: JsValue) : JsObject = {
+    val flatSchema = schema \ "type" match {
+      case JsString("record") => FlattenStrategy.modifySchemaElement(schema, "fields", traverseSchema(schema \ "fields", FlattenStrategy))
+      case _ => traverseSchema(schema, FlattenStrategy)
     }
-
-    val schemaType = (schema \ "type").as[String]
-    schemaType match {
-      case "record" => modifySchemaElement(schema, "fields", modifySchema(schema \ "fields"))
-      case "enum" => schema
-      case "fixed" => schema
-      case _ => throw new Exception("Unrecognizable JSON element\n" + schema)
-    }
+    flatSchema.as[JsObject]
   }
 
   def namespaceSchema(schema: JsObject) : JsObject = {

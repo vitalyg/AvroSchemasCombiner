@@ -57,7 +57,7 @@ object AvroSchemasCombiner {
 //    println(namespacedSchemas.tail.head)
 //    println(getNestedSchemas(namespacedSchemas.tail.head))
     val nestedSchemas = namespacedSchemas.flatMap(getNestedSchemas)
-    val flatSchemas = nestedSchemas.map(x => (getNameWithNamespace(x.as[JsObject]), flattenSchema(x.as[JsObject]))).toMap
+    val flatSchemas = nestedSchemas.map(x => (getNameWithNamespace(x.as[JsObject]), flattenSchema(x))).toMap
     val order = topologicalSort(getDependencyGraph(flatSchemas))
 
     val bw = new BufferedWriter(new FileWriter(outputFile))
