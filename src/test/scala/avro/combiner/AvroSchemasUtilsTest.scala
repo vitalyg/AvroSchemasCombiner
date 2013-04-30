@@ -29,7 +29,7 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
   }
   val namespacedSchema = namespaceSchema(schema)
   "namespaceSchema" should {
-    def getRecordField(record: JsObject, fieldName: String) = {
+    def getRecordField(record: JsValue, fieldName: String) = {
       (record \ "fields")
               .as[JsArray]
               .value

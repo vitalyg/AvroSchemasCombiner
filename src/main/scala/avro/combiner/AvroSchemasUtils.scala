@@ -26,6 +26,16 @@ trait AvroTraversal {
   def traverseReferenceType(schema: JsValue): JsValue = JsObject(Nil)
 }
 
+trait ModifyAvroTraversal extends AvroTraversal {
+  def modifySchemaElement(schema: JsValue, key: String, newVal: JsValue) = schema.as[JsObject] - key + (key -> newVal)
+  override def traverseObjectType(schema: JsValue, objectResults: JsValue): JsValue = modifySchemaElement(schema, "type", objectResults)
+  override def traverseArray(schema: JsValue, arrayResults: JsValue) : JsValue = modifySchemaElement(schema, "type", arrayResults)
+  override def traverseArrayType(schema: JsValue, arrayResults: JsValue) : JsValue = modifySchemaElement(schema, "items", arrayResults)
+  override def traverseMapType(schema: JsValue, mapResults: JsValue) : JsValue = modifySchemaElement(schema, "values", mapResults)
+  override def traversePrimitiveType(schema: JsValue): JsValue = schema
+  override def traverseReferenceType(schema: JsValue): JsValue = schema
+}
+
 object InternallyDefinedSchemasExtractor extends AvroTraversal {
   override def traverseRecordType(schema: JsValue, recordResults: JsValue) = JsArray(Seq(schema) ++ recordResults.as[JsArray].value)
   override def traverseEnumType(schema: JsValue) = schema.as[JsObject]
@@ -36,17 +46,17 @@ object DependenciesExtractor extends AvroTraversal {
   override def traverseReferenceType(schema: JsValue) = schema
 }
 
-object FlattenStrategy extends AvroTraversal {
-  def modifySchemaElement(schema: JsValue, key: String, newVal: JsValue) = schema.as[JsObject] - key + (key -> newVal)
+object FlattenStrategy extends ModifyAvroTraversal {
   override def traverseRecordType(schema: JsValue, recordResults: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
-  override def traverseObjectType(schema: JsValue, objectResults: JsValue): JsValue = modifySchemaElement(schema, "type", objectResults)
-  override def traverseArray(schema: JsValue, arrayResults: JsValue) : JsValue = modifySchemaElement(schema, "type", arrayResults)
-  override def traverseArrayType(schema: JsValue, arrayResults: JsValue) : JsValue = modifySchemaElement(schema, "items", arrayResults)
-  override def traverseMapType(schema: JsValue, mapResults: JsValue) : JsValue = modifySchemaElement(schema, "values", mapResults)
   override def traverseEnumType(schema: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
   override def traverseFixedType(schema: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
-  override def traversePrimitiveType(schema: JsValue): JsValue = schema
-  override def traverseReferenceType(schema: JsValue): JsValue = schema
+}
+
+case class NamespaceStrategy(namespace: String) extends ModifyAvroTraversal {
+  def addNamespace(schema: JsValue) = schema.as[JsObject] + ("namespace" -> JsString(namespace))
+  override def traverseRecordType(schema: JsValue, recordResults: JsValue): JsValue = addNamespace(modifySchemaElement(schema, "fields", recordResults))
+  override def traverseEnumType(schema: JsValue): JsValue = addNamespace(schema)
+  override def traverseFixedType(schema: JsValue): JsValue = addNamespace(schema)
 }
 
 object AvroSchemasUtils {
@@ -111,53 +121,7 @@ object AvroSchemasUtils {
     flatSchema.as[JsObject]
   }
 
-  def namespaceSchema(schema: JsObject) : JsObject = {
-    def modifySchema(schema: JsValue, namespace:String) : JsValue = {
-      def modifySchemaElement(schema: JsValue, key: String, newVal: JsValue) = schema.as[JsObject] - key + (key -> newVal)
-      def addNamespace(schema: JsValue) = schema.as[JsObject] + ("namespace" -> JsString(namespace))
-      def parseByType(schema: JsValue) : JsValue = {
-        val schemaType = schema \ "type"
-        schemaType match {
-          // union definition
-          case JsArray(types) => modifySchemaElement(schema, "type", JsArray(types.map(element => modifySchema(element, namespace))))
-          // built-in type
-          case JsString(str) => parseStringType(str)
-          // type definition
-          case JsObject(_) => modifySchemaElement(schema, "type", modifySchema(schemaType, namespace))
-          case _ => throw new Exception("Unrecognizable JSON element\n" + schema)
-        }
-      }
-
-      def parseStringType(schemaType: String) : JsValue = {
-        schemaType match {
-          case "record" => addNamespace(modifySchemaElement(schema, "fields", modifySchema(schema \ "fields", namespace)))
-          case "array" => modifySchemaElement(schema, "items", modifySchema(schema \ "items", namespace))
-          case "map" => modifySchemaElement(schema, "values", modifySchema(schema \ "values", namespace))
-          case "enum" => addNamespace(schema)
-          case "fixed" => addNamespace(schema)
-          case Primitive(_) => schema
-          case _ => modifySchemaElement(schema, "type", JsString(getNameWithNamespace(namespace, schemaType))) // class reference
-        }
-      }
-
-      def parseString(str: String) : JsValue = {
-        str match {
-          case Primitive(_) => schema
-          case _ => JsString(getNameWithNamespace(namespace, str)) // class reference
-        }
-      }
-
-      schema match {
-        case JsArray(elements) => JsArray(elements.map(element => modifySchema(element, namespace)))
-        case JsObject(_) => parseByType(schema)
-        case JsString(str) => parseString(str)
-        case _ => throw new Exception("Unrecognizable JSON element\n" + schema)
-      }
-    }
-
-    modifySchema(schema, (schema \ "namespace").as[String]).as[JsObject]
-  }
-
+  def namespaceSchema(schema: JsObject) : JsValue = traverseSchema(schema, NamespaceStrategy((schema \ "namespace").as[String]))
   def getNestedSchemas(schema: JsValue) = traverseSchema(schema, InternallyDefinedSchemasExtractor).as[JsArray].value
   def getDependencies(schema: JsValue) = traverseSchema(schema, DependenciesExtractor)
   def getDependencyGraph(schemas: Map[String, JsObject]) : Map[String, Set[String]] = {
