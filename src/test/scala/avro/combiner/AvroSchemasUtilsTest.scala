@@ -11,6 +11,22 @@ import AvroSchemasUtils._
  */
 class AvroSchemasUtilsTest extends SpecificationWithJUnit {
   val schema = Json.parse("{\n   \"namespace\" : \"example.avro\",\n   \"type\" : \"record\",\n   \"name\" : \"User\",\n   \"fields\" :\n      [\n         {\n            \"name\" : \"name\",\n            \"type\" : \"string\"\n         },\n         {\n            \"name\" : \"favorite_number\",\n            \"type\" :\n               [\n                  \"int\",\n                  \"null\"\n               ]\n         },\n         {\n            \"name\" : \"favorite_color\",\n            \"type\" :\n               [\n                  \"string\",\n                  \"null\"\n               ]\n         },\n         {\n            \"name\" : \"address\",\n            \"type\" :\n               {\n                  \"type\" : \"map\",\n                  \"values\" : \"Address\"\n               }\n         },\n         {\n            \"name\" : \"title\",\n            \"type\" :\n               {\n                  \"type\" : \"enum\",\n                  \"name\" : \"title\",\n                  \"symbols\" :\n                     [\n                        \"Mr\",\n                        \"Miss\",\n                        \"Mrs\",\n                        \"Ms\"\n                     ]\n               }\n         },\n         {\n            \"name\" : \"phones\",\n            \"type\" :\n               {\n                  \"type\" : \"array\",\n                  \"items\" : \"example.phones.Phone\"\n               }\n         },\n         {\n            \"name\" : \"hash\",\n            \"type\" :\n               {\n                  \"type\" : \"fixed\",\n                  \"size\" : 16,\n                  \"name\" : \"md5\"\n               }\n         }\n      ]\n}").as[JsObject]
+  val simpleObject = JsObject(Seq("name" -> JsString("name"), "type" -> JsString("string")))
+  val simpleArray = JsArray(Seq(JsString("int"), JsString("null")))
+  val compoundArray = JsArray(Seq(JsObject(Seq("name" -> JsString("name"), "type" -> JsString("string"))),
+                                  JsObject(Seq("name" -> JsString("number"), "type" -> simpleArray))))
+  var innerEnum: JsObject = JsObject(Seq("type" -> JsString("enum"),
+                                         "name" -> JsString("title"),
+                                         "namespace" -> JsString("example.avro"),
+                                         "symbols" -> JsArray(Seq(JsString("a"), JsString("b")))))
+  val enum = JsObject(Seq("name" -> JsString("title"), "type" -> innerEnum))
+  val avroMap = JsObject(Seq("name" -> JsString("address"),
+                             "type" -> JsObject(Seq("type" -> JsString("map"),
+                                                    "values" -> JsString("example.Avro.Address")))))
+  val recordWithEnum = JsObject(Seq("type" -> JsString("record"),
+                                    "fields" -> JsArray(Seq(simpleObject, avroMap, enum))))
+  val recordWithinRecord = JsObject(Seq("type" -> JsString("record"),
+                                        "fields" -> JsArray(Seq(simpleObject, recordWithEnum))))
 
   "Concatenating namespaces should" should {
     "combine namespace and name with a dot" in {
@@ -47,30 +63,19 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
 
   "traverseSchemas with InternallyDefinedSchemasExtractor" should {
     "check that simple object returns empty JsObject" in {
-      val simpleObject = JsObject(Seq("name" -> JsString("name"), "type" -> JsString("string")))
       traverseSchema(simpleObject, InternallyDefinedSchemasExtractor) mustEqual JsObject(Nil)
     }
-    val simpleArray = JsArray(Seq(JsString("int"), JsString("null")))
     "check that simple array return empty JsArray" in {
       traverseSchema(simpleArray, InternallyDefinedSchemasExtractor) mustEqual JsArray(Nil)
     }
     "check that compound array still returns empty JsObjectArray" in {
-      val compoundArray = JsArray(Seq(JsObject(Seq("name" -> JsString("name"), "type" -> JsString("string"))),
-                                      JsObject(Seq("name" -> JsString("number"), "type" -> simpleArray))))
       traverseSchema(compoundArray, InternallyDefinedSchemasExtractor) mustEqual JsArray(Nil)
     }
     "check that map returns empty JsObject" in {
-      val avroMap = JsObject(Seq("name" -> JsString("address"),
-                                 "type" -> JsObject(Seq("type" -> JsString("Map"),
-                                                        "values" -> JsString("example.Avro.Address")))))
       traverseSchema(avroMap, InternallyDefinedSchemasExtractor) mustEqual JsObject(Nil)
     }
     "check that enum does not return a JsArray" in {
-      val enum = JsObject(Seq("name" -> JsString("title"),
-                              "type" -> JsObject(Seq("type" -> JsString("enum"),
-                                                     "name" -> JsString("title"),
-                                                     "symbols" -> JsArray(Seq(JsString("a"), JsString("b")))))))
-      traverseSchema(enum, InternallyDefinedSchemasExtractor) \ "type" mustEqual JsString("enum")
+      traverseSchema(enum, InternallyDefinedSchemasExtractor).as[JsArray].value.head \ "type" mustEqual JsString("enum")
     }
   }
 
@@ -80,11 +85,14 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
     }
     "check that title enum is one of the nested schemas" in {
       val nestedSchemas = getNestedSchemas(namespacedSchema)
-      hasElement(nestedSchemas, "title") mustEqual true
+      hasElement(nestedSchemas, "example.avro.title") mustEqual true
     }
     "check that hash fixed is one of the nested schemas" in {
       val nestedSchemas = getNestedSchemas(namespacedSchema)
-      hasElement(nestedSchemas, "md5") mustEqual true
+      hasElement(nestedSchemas, "example.avro.md5") mustEqual true
+    }
+    "check that enum doesn't result in an exception" in {
+      getNestedSchemas(enum) mustEqual Seq(enum \ "type")
     }
   }
 
@@ -98,13 +106,11 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
       (el \ "type").isInstanceOf[JsString]
     }
     val flatSchemas = flattenSchema(namespacedSchema)
+    "check that inner enum works" in {
+      flattenSchema(innerEnum) mustEqual innerEnum
+    }
     "check that title enum is flat" in {
-      val enum = JsObject(Seq("name" -> JsString("title"),
-                              "type" -> JsObject(Seq("type" -> JsString("enum"),
-                                                     "name" -> JsString("title"),
-                                                     "namespace" -> JsString("example.avro"),
-                                                     "symbols" -> JsArray(Seq(JsString("a"), JsString("b")))))))
-      flattenSchema(enum) \ "type" mustEqual JsString("example.avro.title")
+      flattenSchema(enum) \ "type" mustEqual JsString("title")
     }
     "check that all fields are objects" in {
       (flatSchemas \ "fields").as[JsArray].value.filter(!_.isInstanceOf[JsObject]).size mustEqual 0
@@ -117,16 +123,30 @@ class AvroSchemasUtilsTest extends SpecificationWithJUnit {
     }
   }
 
+  "traverseSchemas with DependenciesExtractor" should {
+    "check that simple object returns empty JsObject" in {
+      traverseSchema(simpleObject, DependenciesExtractor) mustEqual JsObject(Nil)
+    }
+    "check that simple array return empty JsArray" in {
+      traverseSchema(simpleArray, DependenciesExtractor) mustEqual JsArray(Nil)
+    }
+    "check that compound array still returns empty JsObjectArray" in {
+      traverseSchema(compoundArray, DependenciesExtractor) mustEqual JsArray(Nil)
+    }
+    "check that map returns empty JsObject" in {
+      traverseSchema(avroMap, DependenciesExtractor) mustEqual JsString("example.Avro.Address")
+    }
+    "check that enum does return an empty JsArray" in {
+      traverseSchema(innerEnum, DependenciesExtractor) mustEqual JsArray(Nil)
+    }
+  }
 
   "getDependencyGraph" should {
     val dependencies = getDependencyGraph(Map("User" -> flattenSchema(namespacedSchema)))
-    val simpleArray = JsArray(Seq(JsString("int"), JsString("null")))
     "check that simple array return empty JsObjectArray" in {
       traverseSchema(simpleArray, DependenciesExtractor) mustEqual JsArray(Nil)
     }
     "check that compound array still returns empty JsObjectArray" in {
-      val compoundArray = JsArray(Seq(JsObject(Seq("name" -> JsString("name"), "type" -> JsString("string"))),
-                                      JsObject(Seq("name" -> JsString("number"), "type" -> simpleArray))))
       traverseSchema(compoundArray, DependenciesExtractor) mustEqual JsArray(Nil)
     }
     def isDependency(depends: Map[String, Set[String]], name: String) = depends("User")(name)

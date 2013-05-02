@@ -52,12 +52,10 @@ object AvroSchemasCombiner {
     if (!outputFile.exists)
       outputFile.createNewFile
 
-    val schemas = getAvroSchemas(inputDir)
+    val schemas = getAvroSchemas(inputDir).filter(_._1 == "ProspectDocuments")
     val namespacedSchemas = schemas.values.map(namespaceSchema)
-//    println(namespacedSchemas.tail.head)
-//    println(getNestedSchemas(namespacedSchemas.tail.head))
     val nestedSchemas = namespacedSchemas.flatMap(getNestedSchemas)
-    val flatSchemas = nestedSchemas.map(x => (getNameWithNamespace(x.as[JsObject]), flattenSchema(x))).toMap
+    val flatSchemas = nestedSchemas.map(x => ((x \ "name").as[String], flattenSchema(x))).toMap
     val order = topologicalSort(getDependencyGraph(flatSchemas))
 
     val bw = new BufferedWriter(new FileWriter(outputFile))
