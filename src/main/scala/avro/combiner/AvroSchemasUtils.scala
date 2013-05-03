@@ -33,7 +33,6 @@ trait ModifyAvroTraversal extends AvroTraversal {
 }
 
 object InternallyDefinedSchemasExtractor extends AvroTraversal {
-
   override def traverseRecordType(schema: JsValue, recordResults: JsValue) = {
     def valueToSeq(value: JsValue) = {
       value match {
@@ -53,12 +52,6 @@ object DependenciesExtractor extends AvroTraversal {
   override def traverseFixedType(schema: JsValue) = JsArray(Nil)
 }
 
-//object FlattenStrategy extends ModifyAvroTraversal {
-//  override def traverseRecordType(schema: JsValue, recordResults: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
-//  override def traverseEnumType(schema: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
-//  override def traverseFixedType(schema: JsValue): JsValue = JsString(getNameWithNamespace(schema.as[JsObject]))
-//}
-
 object FlattenStrategy extends ModifyAvroTraversal {
   override def traverseRecordType(schema: JsValue, recordResults: JsValue): JsValue = schema \ "name"
   override def traverseEnumType(schema: JsValue): JsValue = schema \ "name"
@@ -66,7 +59,6 @@ object FlattenStrategy extends ModifyAvroTraversal {
 }
 
 case class NamespaceStrategy(namespace: String) extends ModifyAvroTraversal {
-//  def addNamespace(schema: JsValue) = schema.as[JsObject] + ("namespace" -> JsString(namespace))
   def addNamespace(schema: JsValue) = {
     schema match {
       case s: JsObject => modifySchemaElement(s, "name", JsString(getNameWithNamespace(namespace, (s \ "name").as[String])))
